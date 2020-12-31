@@ -34,7 +34,25 @@ var Modules = map[string]string{
 	"txpool":     TxpoolJs,
 	"les":        LESJs,
 	"lespay":     LESPayJs,
+	"myalgo":     MyAlgo_JS,
 }
+
+
+const MyAlgo_JS = `
+web3._extend({
+	property: 'myalgo',
+	methods: [
+		new web3._extend.Method({
+			name: 'echoNumber',
+			call: 'myalgo_echoNumber',
+			params: 1,
+			inputFormatter: [null]
+		}),
+	]
+})
+`
+
+
 
 const ChequebookJs = `
 web3._extend({

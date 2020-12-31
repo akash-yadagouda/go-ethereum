@@ -20,6 +20,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/myalgo"
 	"math/big"
 	"runtime"
 	"sync"
@@ -276,6 +277,13 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 		return clique.New(chainConfig.Clique, db)
 	}
 	// Otherwise assume proof-of-work
+	if chainConfig.MyAlgo != nil{
+
+		fmt.Println("myalgo is configured as consensus engine")
+
+		return myalgo.New(chainConfig.MyAlgo, db)
+
+	}
 	switch config.PowMode {
 	case ethash.ModeFake:
 		log.Warn("Ethash used in fake mode")
