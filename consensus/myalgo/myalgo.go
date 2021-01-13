@@ -1,6 +1,7 @@
 package myalgo
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -12,9 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/sha3"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -94,6 +97,34 @@ func (MyAlgo *MyAlgo) Author(header *types.Header) (common.Address, error) {
 // via the VerifySeal method.
 func (MyAlgo *MyAlgo) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	log.Info("will verfiyHeader")
+	hasher:=sha256.New()
+	runes:=[]byte(header.ParentHash.String())
+	hasher.Write(runes)
+	runes1:=[]byte(header.Root.String())
+	hasher.Write(runes1)
+
+	runes3:=[]byte(header.TxHash.String())
+	hasher.Write(runes3)
+	runes4:=[]byte(header.Number.String())
+	hasher.Write(runes4)
+	hash := hasher.Sum(nil)
+
+
+
+
+
+
+	var ab common.Hash = common.BytesToHash(hash)
+	a:=ab.String()
+	b:=header.MixDigest.String()
+	if (a!=b){
+		return nil
+	}else {
+		return errors.New("Invalid solution to the problem ")
+	}
+
+
+
 	p, _ := getProblemFromHeader(header)
 	result := solveProblem(p);
 	correct := checkResult(result, header)
@@ -156,6 +187,7 @@ func (MyAlgo *MyAlgo)  VerifySeal(chain consensus.ChainHeaderReader, header *typ
 // rules of a particular engine. The changes are executed inline.
 func (MyAlgo *MyAlgo) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error{
 	log.Info("will prepare the block")
+	header.Coinbase = common.Address{}
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
@@ -201,7 +233,7 @@ func calcDifficultyHomestead(time uint64, parent *types.Header) *big.Int {
 	var bigParentTime  = new(big.Int).SetInt64(int64(parent.Time)) // holds intermediate values to make the algo easier to read & audit
 	x := new(big.Int)
 	y := new(big.Int)
-//till here
+	//till here
 	// 1 - (block_timestamp - parent_timestamp) // 10
 	x.Sub(bigTime, bigParentTime)
 	x.Div(x, big10)
@@ -248,16 +280,16 @@ func calcDifficultyHomestead(time uint64, parent *types.Header) *big.Int {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (MyAlgo *MyAlgo) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header){
-	log.Info("will Finalize the block")
+	log.Info("will Finalize the block and finalize")
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	//b := types.NewBlock(header, txs, uncles,new(trie.Trie))
 
 
 }
 
-func (c *MyAlgo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+func (MyAlgo *MyAlgo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// Finalize block
-	c.Finalize(chain, header, state, txs, uncles)
+	MyAlgo.Finalize(chain, header, state, txs, uncles)
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), nil
@@ -265,7 +297,7 @@ func (c *MyAlgo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 
 
 func getProblemFromHeader (header *types.Header) (Problem, int64){
-	runes := []rune(header.ParentHash.String())
+	runes := []rune(header.Difficulty.String())
 	index_in_hash := string(runes[0:3])
 	index_in_decimal, _ := strconv.ParseInt(index_in_hash , 0, 64)
 	index_in_decimal = index_in_decimal % 10
@@ -284,7 +316,7 @@ func solveProblem(p Problem) (float64){
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.
 func (MyAlgo *MyAlgo) Seal(chain consensus.ChainHeaderReader, block *types.Block,results chan<- *types.Block ,stop <-chan struct{}) ( error){
-	log.Info("will Seal the block")
+	log.Info("will Seal the block brother")
 	//time.Sleep(15 * time.Second)
 	header := block.Header()
 	/*
@@ -324,23 +356,85 @@ func (MyAlgo *MyAlgo) Seal(chain consensus.ChainHeaderReader, block *types.Block
 		}
 	*/
 
-    MyAlgo.SealHash(header)
-    results<-block.WithSeal(header)
-	header.Nonce, header.MixDigest = getRequiredHeader(result_in_float)
+	//MyAlgo.SealHash(header)
+	//results<- block.WithSeal(header)
+
+
+	//default:
+	//log.Warn("Sealing result is not read by miner", "sealhash", MyAlgo.SealHash(header))
+
+
+
+
+
+
+	hasher := sha256.New()
+
+
+	runes:=[]byte(header.ParentHash.String())
+	hasher.Write(runes)
+	runes1:=[]byte(header.Root.String())
+	hasher.Write(runes1)
+
+	runes3:=[]byte(header.TxHash.String())
+	hasher.Write(runes3)
+	runes4:=[]byte(header.Number.String())
+	hasher.Write(runes4)
+	hash := hasher.Sum(nil)
+
+
+
+
+
+
+	header.MixDigest = common.BytesToHash(hash)
+
+
+	header.Nonce = getRequiredHeader(result_in_float)
+	//log.Info(fmt.Println("header.MixDigest"))
+	results <- block.WithSeal(header)
+
+
+
+
 	return  nil
 }
 
-func (MyAlgo *MyAlgo) SealHash(header *types.Header) common.Hash {
-	return header.ParentHash
+
+
+func (MyAlgo *MyAlgo) SealHash(header *types.Header) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+
+	rlp.Encode(hasher, []interface{}{
+		header.ParentHash,
+		header.UncleHash,
+		header.Coinbase,
+		header.Root,
+		header.TxHash,
+		header.ReceiptHash,
+		header.Bloom,
+		header.Difficulty,
+		header.Number,
+		header.GasLimit,
+		header.GasUsed,
+		header.Time,
+		header.Extra,
+	})
+	hasher.Sum(hash[:0])
+	return hash
 }
+
+
+
+
 
 func (c *MyAlgo) Close() error {
 	return nil
 }
 
 
-func getRequiredHeader(result float64) (types.BlockNonce, common.Hash){
-	return getNonce(result), common.Hash{}
+func getRequiredHeader(result float64) (types.BlockNonce){
+	return getNonce(result)
 }
 
 func getNonce(result float64) (types.BlockNonce) {

@@ -18,6 +18,7 @@ package clique
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -57,6 +58,8 @@ func (api *API) GetSnapshotAtHash(hash common.Hash) (*Snapshot, error) {
 	return api.clique.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 }
 
+
+
 // GetSigners retrieves the list of authorized signers at the specified block.
 func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	// Retrieve the requested block number (or current if none requested)
@@ -75,6 +78,14 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 		return nil, err
 	}
 	return snap.signers(), nil
+}
+func (api *API) AddStake(a int ) {
+	log.Info("adding Stake")
+	api.clique.lock.Lock()
+	defer api.clique.lock.Unlock()
+
+	api.clique.stake = a
+
 }
 
 // GetSignersAtHash retrieves the list of authorized signers at the specified block.

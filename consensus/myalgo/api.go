@@ -16,3 +16,7 @@ func (api *API) EchoNumber(ctx context.Context, number uint64) (uint64, error) {
 	fmt.Println("called echo number")
 	return number, nil
 }
+func (api *API) AddStake(ctx context.Context, number uint64) (uint64, error) {
+	fmt.Println("called adding Stake")
+	return number, nil
+}
