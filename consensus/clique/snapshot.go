@@ -19,6 +19,7 @@ package clique
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
@@ -45,6 +46,12 @@ type Tally struct {
 	Authorize bool `json:"authorize"` // Whether the vote is about authorizing or kicking someone
 	Votes     int  `json:"votes"`     // Number of votes until now wanting to pass the proposal
 }
+// Abhi
+type TallyStake struct {
+	Owner common.Address	`json:"owner"`
+	OStakes uint64	        `json:"o_stakes"`
+}
+
 
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
@@ -57,6 +64,8 @@ type Snapshot struct {
 	Recents map[uint64]common.Address   `json:"recents"` // Set of recent signers for spam protections
 	Votes   []*Vote                     `json:"votes"`   // List of votes cast in chronological order
 	Tally   map[common.Address]Tally    `json:"tally"`   // Current vote tally to avoid recalculating
+	TallyStakes []*TallyStake 		    `json:"tallystakes"` // to hold all stakes mapped to their addresses // Abhi
+	StakeSigner common.Address           `json:"stakesigner"` // Abhi
 }
 
 // signersAscending implements the sort interface to allow sorting a list of addresses
@@ -69,15 +78,18 @@ func (s signersAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // newSnapshot creates a new snapshot with the specified startup parameters. This
 // method does not initialize the set of recent signers, so only ever use if for
 // the genesis block.
+
 func newSnapshot(config *params.CliqueConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, signers []common.Address) *Snapshot {
-	snap := &Snapshot{
-		config:   config,
-		sigcache: sigcache,
-		Number:   number,
-		Hash:     hash,
-		Signers:  make(map[common.Address]struct{}),
-		Recents:  make(map[uint64]common.Address),
-		Tally:    make(map[common.Address]Tally),
+
+	var snap = &Snapshot{
+		config:      config,
+		sigcache:    sigcache,
+		Number:      number,
+		Hash:        hash,
+		Signers:     make(map[common.Address]struct{}),
+		Recents:     make(map[uint64]common.Address),
+		Tally:       make(map[common.Address]Tally),
+		StakeSigner: signers[0],
 	}
 	for _, signer := range signers {
 		snap.Signers[signer] = struct{}{}
@@ -121,6 +133,8 @@ func (s *Snapshot) copy() *Snapshot {
 		Recents:  make(map[uint64]common.Address),
 		Votes:    make([]*Vote, len(s.Votes)),
 		Tally:    make(map[common.Address]Tally),
+		TallyStakes:	make([]*TallyStake, len(s.TallyStakes)), // Abhi
+		StakeSigner: s.StakeSigner, // Abhi
 	}
 	for signer := range s.Signers {
 		cpy.Signers[signer] = struct{}{}
@@ -185,12 +199,14 @@ func (s *Snapshot) uncast(address common.Address, authorize bool) bool {
 func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
+		log.Info("apply 202 error")
 		return s, nil
 	}
 	// Sanity check that the headers can be applied
 	for i := 0; i < len(headers)-1; i++ {
 		if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
 			return nil, errInvalidVotingChain
+			log.Info("apply 209 error")
 		}
 	}
 	if headers[0].Number.Uint64() != s.Number+1 {
@@ -209,6 +225,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		if number%s.config.Epoch == 0 {
 			snap.Votes = nil
 			snap.Tally = make(map[common.Address]Tally)
+			snap.TallyStakes = nil
 		}
 		// Delete the oldest signer from the recent list to allow it signing again
 		if limit := uint64(len(snap.Signers)/2 + 1); number >= limit {
@@ -220,13 +237,16 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			return nil, err
 		}
 		if _, ok := snap.Signers[signer]; !ok {
+			log.Info("apply 240 error")
 			return nil, errUnauthorizedSigner
-		}
+	}
 		for _, recent := range snap.Recents {
 			if recent == signer {
 				return nil, errRecentlySigned
 			}
 		}
+
+
 		snap.Recents[number] = signer
 
 		// Header authorized, discard any previous votes from the signer
@@ -241,24 +261,33 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 		}
 		// Tally up the new vote from the signer
-		var authorize bool
-		switch {
+		//var authorize bool
+		var in_stakes uint64 // Abhi
+
+	/*	switch {
 		case bytes.Equal(header.Nonce[:], nonceAuthVote):
 			authorize = true
 		case bytes.Equal(header.Nonce[:], nonceDropVote):
 			authorize = false
 		default:
 			return nil, errInvalidVote
-		}
-		if snap.cast(header.Coinbase, authorize) {
+		}*/
+		in_stakes = header.Nonce.Uint64() // Abhi
+		/*if snap.cast(header.Coinbase, authorize) {
 			snap.Votes = append(snap.Votes, &Vote{
 				Signer:    signer,
 				Block:     number,
 				Address:   header.Coinbase,
 				Authorize: authorize,
 			})
-		}
+		}*/
+		// Abhi -Add stakes to snapshot
+		snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
+			Owner:   header.Coinbase,
+			OStakes: in_stakes,
+		})
 		// If the vote passed, update the list of signers
+
 		if tally := snap.Tally[header.Coinbase]; tally.Votes > len(snap.Signers)/2 {
 			if tally.Authorize {
 				snap.Signers[header.Coinbase] = struct{}{}
@@ -291,6 +320,25 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 			delete(snap.Tally, header.Coinbase)
 		}
+
+
+		// Abhi Our max finding algo
+
+		max_stake := uint64(00)
+		var max_staked_address common.Address
+
+
+
+
+		for i,sa := range snap.TallyStakes {
+			fmt.Print(i)
+
+			if max_stake< sa.OStakes{
+				max_stake = sa.OStakes
+				max_staked_address = sa.Owner
+			}
+		}
+		snap.StakeSigner = max_staked_address
 		// If we're taking too much time (ecrecover), notify the user once a while
 		if time.Since(logged) > 8*time.Second {
 			log.Info("Reconstructing voting history", "processed", i, "total", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))

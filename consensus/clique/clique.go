@@ -19,6 +19,7 @@ package clique
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 	"math/big"
@@ -176,7 +177,7 @@ type Clique struct {
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
-	stake int
+	stakes    map[common.Address]uint64  // stakes and owners (Abhi)
 
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
@@ -205,7 +206,7 @@ func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 		recents:    recents,
 		signatures: signatures,
 		proposals:  make(map[common.Address]bool),
-		stake: 10,
+		stakes : make(map[common.Address]uint64), // Abhi
 	}
 }
 
@@ -363,21 +364,29 @@ func (c *Clique) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 		// If an on-disk checkpoint snapshot can be found, use that
 		if number%checkpointInterval == 0 {
 			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash); err == nil {
+				log.Info(" error 367 clique.go ")
 				log.Trace("Loaded voting snapshot from disk", "number", number, "hash", hash)
 				snap = s
 				break
 			}
 		}
+		//log.Info("continuing 373")
 		// If we're at the genesis, snapshot the initial state. Alternatively if we're
 		// at a checkpoint block without a parent (light client CHT), or we have piled
 		// up more headers than allowed to be reorged (chain reinit from a freezer),
 		// consider the checkpoint trusted and snapshot it.
 		if number == 0 || (number%c.config.Epoch == 0 && (len(headers) > params.FullImmutabilityThreshold || chain.GetHeaderByNumber(number-1) == nil)) {
+
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
 
 				signers := make([]common.Address, (len(checkpoint.Extra)-extraVanity-extraSeal)/common.AddressLength)
+				//log.Info(signers[0].String())
+				//log.Info(signers[1].String())
+
+
+
 				for i := 0; i < len(signers); i++ {
 					copy(signers[i][:], checkpoint.Extra[extraVanity+i*common.AddressLength:])
 				}
@@ -402,6 +411,7 @@ func (c *Clique) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
 			if header == nil {
+				log.Info("error at 414 clique.go")
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
@@ -414,6 +424,7 @@ func (c *Clique) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 	}
 	snap, err := snap.apply(headers)
 	if err != nil {
+		log.Info("error at 426")
 		return nil, err
 	}
 	c.recents.Add(snap.Hash, snap)
@@ -421,10 +432,12 @@ func (c *Clique) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 	// If we've generated a new checkpoint snapshot, save to disk
 	if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
 		if err = snap.store(c.db); err != nil {
+			log.Info("error at 435 clique.go")
 			return nil, err
 		}
 		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
 	}
+	log.Info("error at 439 in clique.go")
 	return snap, err
 }
 
@@ -499,32 +512,47 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	// Assemble the voting snapshot to check which votes make sense
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
+		log.Info("returning error 503")
 		return err
 	}
 	if number%c.config.Epoch != 0 {
 		c.lock.RLock()
 
 		// Gather all the proposals that make sense voting on
-		addresses := make([]common.Address, 0, len(c.proposals))
-		for address, authorize := range c.proposals {
+		//addresses := make([]common.Address, 0, len(c.proposals))
+		incoming_addresses := make([]common.Address, 0, len(c.stakes)) // Abhi
+		/*for address, authorize := range c.proposals {
 			if snap.validVote(address, authorize) {
 				addresses = append(addresses, address)
 			}
+		} */
+		// Abhi My code
+		for address := range c.stakes {
+
+			incoming_addresses = append(incoming_addresses,address)
+
 		}
 		// If there's pending proposals, cast a vote on them
-		if len(addresses) > 0 {
+	/*	if len(addresses) > 0 {
 			header.Coinbase = addresses[rand.Intn(len(addresses))]
 			if c.proposals[header.Coinbase] {
 				copy(header.Nonce[:], nonceAuthVote)
 			} else {
 				copy(header.Nonce[:], nonceDropVote)
 			}
+		}*/
+	var n types.BlockNonce
+
+		if len(incoming_addresses) > 0 {
+			header.Coinbase = incoming_addresses[rand.Intn(len(incoming_addresses))]
+			binary.BigEndian.PutUint64(n[:],c.stakes[header.Coinbase])
+			header.Nonce = n // Abhi
 		}
 		c.lock.RUnlock()
 	}
 	// Set the correct difficulty
-	header.Difficulty = calcDifficulty(snap, c.signer)
-
+	//header.Difficulty = calcDifficulty(snap, c.signer)
+     header.Difficulty=big.NewInt(1)
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
@@ -544,12 +572,14 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	// Ensure the timestamp has the correct delay
 	parent := chain.GetHeader(header.ParentHash, number-1)
 	if parent == nil {
+		log.Info("returning error 562")
 		return consensus.ErrUnknownAncestor
 	}
 	header.Time = parent.Time + c.config.Period
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
 	}
+	log.Info("preparing excuted successfuly")
 	return nil
 }
 
@@ -585,7 +615,7 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 // the local signing credentials.
 func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
-
+   log.Info("Sealing started")
 	// Sealing the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -606,11 +636,16 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	if err != nil {
 		return err
 	}
-	if _, authorized := snap.Signers[signer]; !authorized {
+/*	if _, authorized := snap.Signers[signer]; !authorized {
 		return errUnauthorizedSigner
 	}
+*/
+	if signer != snap.StakeSigner{
+		return errUnauthorizedSigner
+	}
+
 	// If we're amongst the recent signers, wait for the next block
-	for seen, recent := range snap.Recents {
+	/*for seen, recent := range snap.Recents {
 		if recent == signer {
 			// Signer is among recents, only wait if the current block doesn't shift it out
 			if limit := uint64(len(snap.Signers)/2 + 1); number < limit || seen > number-limit {
@@ -618,7 +653,9 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 				return nil
 			}
 		}
-	}
+	}*/
+
+
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
 	if header.Difficulty.Cmp(diffNoTurn) == 0 {
