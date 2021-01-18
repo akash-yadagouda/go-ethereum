@@ -80,6 +80,8 @@ func (s signersAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // the genesis block.
 
 func newSnapshot(config *params.CliqueConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, signers []common.Address) *Snapshot {
+	log.Info("printing signers of 0 address, ")
+	log.Info(signers[0].String())
 
 	var snap = &Snapshot{
 		config:      config,
@@ -146,6 +148,7 @@ func (s *Snapshot) copy() *Snapshot {
 		cpy.Tally[address] = tally
 	}
 	copy(cpy.Votes, s.Votes)
+	copy(cpy.TallyStakes,s.TallyStakes)
 
 	return cpy
 }
@@ -225,7 +228,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		if number%s.config.Epoch == 0 {
 			snap.Votes = nil
 			snap.Tally = make(map[common.Address]Tally)
-			snap.TallyStakes = nil
+			//snap.TallyStakes = nil
 		}
 		// Delete the oldest signer from the recent list to allow it signing again
 		if limit := uint64(len(snap.Signers)/2 + 1); number >= limit {
@@ -238,11 +241,12 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		}
 		if _, ok := snap.Signers[signer]; !ok {
 			log.Info("apply 240 error")
-			return nil, errUnauthorizedSigner
+			//return nil, errUnauthorizedSigner
 	}
 		for _, recent := range snap.Recents {
 			if recent == signer {
-				return nil, errRecentlySigned
+				//return nil, errRecentlySigned
+				log.Info("recently signed")
 			}
 		}
 
@@ -282,10 +286,16 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			})
 		}*/
 		// Abhi -Add stakes to snapshot
+		log.Info("Checking----->")
+		log.Info(header.Coinbase.String())
+		//log.Info(string(in_stakes))
+		fmt.Println(in_stakes)
 		snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
 			Owner:   header.Coinbase,
 			OStakes: in_stakes,
 		})
+		//log.Info(string(len(snap.TallyStakes)))
+		fmt.Println(len(snap.TallyStakes))
 		// If the vote passed, update the list of signers
 
 		if tally := snap.Tally[header.Coinbase]; tally.Votes > len(snap.Signers)/2 {
@@ -330,14 +340,36 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 
 
 
-		for i,sa := range snap.TallyStakes {
-			fmt.Print(i)
+		/*for i,sa := range snap.TallyStakes {
+			log.Info(string(i))
+			log.Info(string(sa.OStakes))
+			log.Info(sa.Owner.String())
 
 			if max_stake< sa.OStakes{
 				max_stake = sa.OStakes
 				max_staked_address = sa.Owner
 			}
+		}*/
+
+		//log.Info(string(len(snap.TallyStakes)))
+
+
+		for i := 0; i<len(snap.TallyStakes); i++{
+			//log.Info(string(i))
+			fmt.Println(i,"iterater")
+			log.Info("normal print")
+			log.Info(string(snap.TallyStakes[i].OStakes))
+			log.Info(snap.TallyStakes[i].Owner.String())
+
+			if max_stake< snap.TallyStakes[i].OStakes{
+				max_stake = snap.TallyStakes[i].OStakes
+				max_staked_address = snap.TallyStakes[i].Owner
+			}
+
 		}
+
+
+
 		snap.StakeSigner = max_staked_address
 		// If we're taking too much time (ecrecover), notify the user once a while
 		if time.Since(logged) > 8*time.Second {

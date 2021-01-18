@@ -82,6 +82,7 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 // Abhi
 func (api *API) AddStake(address common.Address, stake uint64) {
 	log.Info("adding Stake")
+	fmt.Println(stake)
 	api.clique.lock.Lock()
 	defer api.clique.lock.Unlock()
 

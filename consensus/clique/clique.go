@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"math/rand"
@@ -262,12 +263,12 @@ func (c *Clique) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 		return errInvalidCheckpointBeneficiary
 	}
 	// Nonces must be 0x00..0 or 0xff..f, zeroes enforced on checkpoints
-	if !bytes.Equal(header.Nonce[:], nonceAuthVote) && !bytes.Equal(header.Nonce[:], nonceDropVote) {
+	/*if !bytes.Equal(header.Nonce[:], nonceAuthVote) && !bytes.Equal(header.Nonce[:], nonceDropVote) {
 		return errInvalidVote
-	}
-	if checkpoint && !bytes.Equal(header.Nonce[:], nonceDropVote) {
+	}*/
+	/*if checkpoint && !bytes.Equal(header.Nonce[:], nonceDropVote) {
 		return errInvalidCheckpointVote
-	}
+	}*/
 	// Check that the extra-data contains both the vanity and signature
 	if len(header.Extra) < extraVanity {
 		return errMissingVanity
@@ -292,11 +293,11 @@ func (c *Clique) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 		return errInvalidUncleHash
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
-	if number > 0 {
+	/*if number > 0 {
 		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0 && header.Difficulty.Cmp(diffNoTurn) != 0) {
 			return errInvalidDifficulty
 		}
-	}
+	}*/
 	// If all checks passed, validate any special fields for hard forks
 	if err := misc.VerifyForkHashes(chain.Config(), header, false); err != nil {
 		return err
@@ -478,18 +479,18 @@ func (c *Clique) verifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 		return err
 	}
 	if _, ok := snap.Signers[signer]; !ok {
-		return errUnauthorizedSigner
+	//	return errUnauthorizedSigner
 	}
 	for seen, recent := range snap.Recents {
 		if recent == signer {
 			// Signer is among recents, only fail if the current block doesn't shift it out
 			if limit := uint64(len(snap.Signers)/2 + 1); seen > number-limit {
-				return errRecentlySigned
+			//	return errRecentlySigned
 			}
 		}
 	}
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
-	if !c.fakeDiff {
+	/*if !c.fakeDiff {
 		inturn := snap.inturn(header.Number.Uint64(), signer)
 		if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
 			return errWrongDifficulty
@@ -497,7 +498,7 @@ func (c *Clique) verifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 		if !inturn && header.Difficulty.Cmp(diffNoTurn) != 0 {
 			return errWrongDifficulty
 		}
-	}
+	}*/
 	return nil
 }
 
@@ -505,8 +506,13 @@ func (c *Clique) verifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 // header for running the transactions on top.
 func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
-	header.Coinbase = common.Address{}
+	//header.Coinbase = common.Address{}
 	header.Nonce = types.BlockNonce{}
+
+	fmt.Println("msg : printing nonce and coinbase")
+	fmt.Println(header.Nonce.Uint64())
+
+	fmt.Println(header.Coinbase)
 
 	number := header.Number.Uint64()
 	// Assemble the voting snapshot to check which votes make sense
@@ -515,7 +521,7 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		log.Info("returning error 503")
 		return err
 	}
-	if number%c.config.Epoch != 0 {
+	if number%c.config.Epoch >= 0 {
 		c.lock.RLock()
 
 		// Gather all the proposals that make sense voting on
@@ -542,11 +548,15 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			}
 		}*/
 	var n types.BlockNonce
+	log.Info("printing stakes from stakes")
+	fmt.Println(c.stakes[header.Coinbase])
 
-		if len(incoming_addresses) > 0 {
-			header.Coinbase = incoming_addresses[rand.Intn(len(incoming_addresses))]
+		if len(incoming_addresses) > -1 {
+		//	header.Coinbase = incoming_addresses[rand.Intn(len(incoming_addresses))]
 			binary.BigEndian.PutUint64(n[:],c.stakes[header.Coinbase])
 			header.Nonce = n // Abhi
+			log.Info("printing Nonce")
+			fmt.Println(header.Nonce.Uint64())
 		}
 		c.lock.RUnlock()
 	}
@@ -640,9 +650,24 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 		return errUnauthorizedSigner
 	}
 */
-	if signer != snap.StakeSigner{
-		return errUnauthorizedSigner
+	log.Info(snap.StakeSigner.String())
+	log.Info("______")
+	log.Info(signer.String())
+	var flag int
+	flag = 0
+	fmt.Println(header.Nonce.Uint64())
+
+	if header.Nonce.Uint64() != 0 {
+		log.Info("sending stakes to others")
+		flag = 1
+
 	}
+	 if signer != snap.StakeSigner && flag==0 {
+		 return errUnauthorizedSigner
+
+
+	 }
+
 
 	// If we're amongst the recent signers, wait for the next block
 	/*for seen, recent := range snap.Recents {
