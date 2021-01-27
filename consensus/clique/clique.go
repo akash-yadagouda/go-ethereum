@@ -179,6 +179,7 @@ type Clique struct {
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
 	stakes    map[common.Address]uint64  // stakes and owners (Abhi)
+	stake	  uint64
 
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
@@ -259,9 +260,9 @@ func (c *Clique) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 	}
 	// Checkpoint blocks need to enforce zero beneficiary
 	checkpoint := (number % c.config.Epoch) == 0
-	if checkpoint && header.Coinbase != (common.Address{}) {
+	/*if checkpoint && header.Coinbase != (common.Address{}) {
 		return errInvalidCheckpointBeneficiary
-	}
+	}*/
 	// Nonces must be 0x00..0 or 0xff..f, zeroes enforced on checkpoints
 	/*if !bytes.Equal(header.Nonce[:], nonceAuthVote) && !bytes.Equal(header.Nonce[:], nonceDropVote) {
 		return errInvalidVote
@@ -526,18 +527,20 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 
 		// Gather all the proposals that make sense voting on
 		//addresses := make([]common.Address, 0, len(c.proposals))
-		incoming_addresses := make([]common.Address, 0, len(c.stakes)) // Abhi
+		//incoming_addresses := make([]common.Address, 0, len(c.stakes)) // Abhi
 		/*for address, authorize := range c.proposals {
 			if snap.validVote(address, authorize) {
 				addresses = append(addresses, address)
 			}
 		} */
 		// Abhi My code
-		for address := range c.stakes {
+	/*	for address := range c.stakes {
 
 			incoming_addresses = append(incoming_addresses,address)
 
 		}
+
+	 */
 		// If there's pending proposals, cast a vote on them
 	/*	if len(addresses) > 0 {
 			header.Coinbase = addresses[rand.Intn(len(addresses))]
@@ -549,11 +552,11 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		}*/
 	var n types.BlockNonce
 	log.Info("printing stakes from stakes")
-	fmt.Println(c.stakes[header.Coinbase])
+	//fmt.Println(c.stakes[header.Coinbase])
 
-		if len(incoming_addresses) > -1 {
+		if c.stake  > 0 {
 		//	header.Coinbase = incoming_addresses[rand.Intn(len(incoming_addresses))]
-			binary.BigEndian.PutUint64(n[:],c.stakes[header.Coinbase])
+			binary.BigEndian.PutUint64(n[:],c.stake)
 			header.Nonce = n // Abhi
 			log.Info("printing Nonce")
 			fmt.Println(header.Nonce.Uint64())
@@ -632,10 +635,12 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 		return errUnknownBlock
 	}
 	// For 0-period chains, refuse to seal empty blocks (no reward but would spin sealing)
-	if c.config.Period == 0 && len(block.Transactions()) == 0 {
+/*	if c.config.Period == 0 && len(block.Transactions()) == 0 {
 		log.Info("Sealing paused, waiting for transactions")
 		return nil
 	}
+
+ */
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
 	signer, signFn := c.signer, c.signFn
@@ -651,14 +656,17 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	}
 */
 	log.Info(snap.StakeSigner.String())
-	log.Info("______")
-	log.Info(signer.String())
+	//log.Info("______")
+	//log.Info(signer.String())
 	var flag int
 	flag = 0
-	fmt.Println(header.Nonce.Uint64())
+	//fmt.Println(header.Nonce.Uint64())
+	fmt.Println("printing block.Transactions()")
+	fmt.Println(len(block.Transactions()))
 
-	if header.Nonce.Uint64() != 0 {
-		log.Info("sending stakes to others")
+
+	if header.Nonce.Uint64() != 0 && len(block.Transactions())==0 {
+		log.Info("sending stakes to others and Transactions are zero")
 		flag = 1
 
 	}
@@ -711,7 +719,12 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
 		}
 	}()
+/*	var x types.BlockNonce
+	var ii uint64
+	ii = 0
+	binary.BigEndian.PutUint64(x[:],ii)
 
+	header.Nonce = x*/
 	return nil
 }
 

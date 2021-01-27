@@ -135,7 +135,7 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'addStake',
 			call: 'clique_addStake',
-			params: 2
+			params: 1
 		}),
 	],
 	properties: [

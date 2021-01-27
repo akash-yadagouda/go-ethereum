@@ -80,14 +80,15 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	return snap.signers(), nil
 }
 // Abhi
-func (api *API) AddStake(address common.Address, stake uint64) {
+func (api *API) AddStake(stake uint64) {
 	log.Info("adding Stake")
 	fmt.Println(stake)
 	api.clique.lock.Lock()
 	defer api.clique.lock.Unlock()
 
 
-	api.clique.stakes[address] = stake
+	//api.clique.stakes[address] = stake
+	api.clique.stake = stake
 
 }
 

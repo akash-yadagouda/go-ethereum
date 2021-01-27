@@ -356,10 +356,10 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 
 		for i := 0; i<len(snap.TallyStakes); i++{
 			//log.Info(string(i))
-			fmt.Println(i,"iterater")
-			log.Info("normal print")
-			log.Info(string(snap.TallyStakes[i].OStakes))
-			log.Info(snap.TallyStakes[i].Owner.String())
+		//	fmt.Println(i,"iterater")
+		//	log.Info("normal print")
+		//	log.Info(string(snap.TallyStakes[i].OStakes))
+		//	log.Info(snap.TallyStakes[i].Owner.String())
 
 			if max_stake< snap.TallyStakes[i].OStakes{
 				max_stake = snap.TallyStakes[i].OStakes
