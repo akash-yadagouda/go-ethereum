@@ -336,7 +336,23 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			delete(snap.Tally, header.Coinbase)
 		}
 
-		// Abhi Our max finding algo
+		//Naveen Selecting Delegated Nodes
+		eligible_stakes := uint64(100)
+		dstake := uint64(00)
+		downer := common.Address{}
+		for i := 0; i < len(snap.TallyStakes); i++ {
+			if snap.TallyStakes[i].OStakes >= eligible_stakes {
+				dstake = snap.TallyStakes[i].OStakes
+				downer = snap.TallyStakes[i].Owner
+				snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
+					Owner:   downer,
+					OStakes: dstake,
+				})
+			}
+
+		}
+
+		// Naveen Our max finding algo
 
 		max_stake := uint64(00)
 		var max_staked_address common.Address

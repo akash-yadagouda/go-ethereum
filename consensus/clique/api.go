@@ -58,8 +58,6 @@ func (api *API) GetSnapshotAtHash(hash common.Hash) (*Snapshot, error) {
 	return api.clique.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 }
 
-
-
 // GetSigners retrieves the list of authorized signers at the specified block.
 func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	// Retrieve the requested block number (or current if none requested)
@@ -79,6 +77,7 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	}
 	return snap.signers(), nil
 }
+
 // Abhi
 func (api *API) AddStake(stake uint64) {
 	log.Info("adding Stake")
@@ -86,9 +85,16 @@ func (api *API) AddStake(stake uint64) {
 	api.clique.lock.Lock()
 	defer api.clique.lock.Unlock()
 
-
 	//api.clique.stakes[address] = stake
 	api.clique.stake = stake
+
+}
+
+//Naveen printing Delegated Signers
+func (api *API) GetDeligatedSigners([]common.Address) {
+	for i := 0; i < len(api.clique.TallyDelegatedStake); i++ {
+
+	}
 
 }
 
