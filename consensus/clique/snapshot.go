@@ -46,26 +46,32 @@ type Tally struct {
 	Authorize bool `json:"authorize"` // Whether the vote is about authorizing or kicking someone
 	Votes     int  `json:"votes"`     // Number of votes until now wanting to pass the proposal
 }
+
 // Abhi
 type TallyStake struct {
-	Owner common.Address	`json:"owner"`
-	OStakes uint64	        `json:"o_stakes"`
+	Owner   common.Address `json:"owner"`
+	OStakes uint64         `json:"o_stakes"`
 }
 
+type TallyDelegatedStake struct {
+	Owner   common.Address `json:"owner"`
+	OStakes uint64         `json:"o_stakes"`
+}
 
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
 	config   *params.CliqueConfig // Consensus engine parameters to fine tune behavior
 	sigcache *lru.ARCCache        // Cache of recent block signatures to speed up ecrecover
 
-	Number  uint64                      `json:"number"`  // Block number where the snapshot was created
-	Hash    common.Hash                 `json:"hash"`    // Block hash where the snapshot was created
-	Signers map[common.Address]struct{} `json:"signers"` // Set of authorized signers at this moment
-	Recents map[uint64]common.Address   `json:"recents"` // Set of recent signers for spam protections
-	Votes   []*Vote                     `json:"votes"`   // List of votes cast in chronological order
-	Tally   map[common.Address]Tally    `json:"tally"`   // Current vote tally to avoid recalculating
-	TallyStakes []*TallyStake 		    `json:"tallystakes"` // to hold all stakes mapped to their addresses // Abhi
-	StakeSigner common.Address           `json:"stakesigner"` // Abhi
+	Number              uint64                      `json:"number"`                // Block number where the snapshot was created
+	Hash                common.Hash                 `json:"hash"`                  // Block hash where the snapshot was created
+	Signers             map[common.Address]struct{} `json:"signers"`               // Set of authorized signers at this moment
+	Recents             map[uint64]common.Address   `json:"recents"`               // Set of recent signers for spam protections
+	Votes               []*Vote                     `json:"votes"`                 // List of votes cast in chronological order
+	Tally               map[common.Address]Tally    `json:"tally"`                 // Current vote tally to avoid recalculating
+	TallyStakes         []*TallyStake               `json:"tallystakes"`           // to hold all stakes mapped to their addresses // Abhi
+	StakeSigner         common.Address              `json:"stakesigner"`           // Abhi
+	TallyDelegatedStake []*TallyDelegatedStake      `json:"tally_delegated_stake"` //Naveen
 }
 
 // signersAscending implements the sort interface to allow sorting a list of addresses
@@ -127,16 +133,16 @@ func (s *Snapshot) store(db ethdb.Database) error {
 // copy creates a deep copy of the snapshot, though not the individual votes.
 func (s *Snapshot) copy() *Snapshot {
 	cpy := &Snapshot{
-		config:   s.config,
-		sigcache: s.sigcache,
-		Number:   s.Number,
-		Hash:     s.Hash,
-		Signers:  make(map[common.Address]struct{}),
-		Recents:  make(map[uint64]common.Address),
-		Votes:    make([]*Vote, len(s.Votes)),
-		Tally:    make(map[common.Address]Tally),
-		TallyStakes:	make([]*TallyStake, len(s.TallyStakes)), // Abhi
-		StakeSigner: s.StakeSigner, // Abhi
+		config:      s.config,
+		sigcache:    s.sigcache,
+		Number:      s.Number,
+		Hash:        s.Hash,
+		Signers:     make(map[common.Address]struct{}),
+		Recents:     make(map[uint64]common.Address),
+		Votes:       make([]*Vote, len(s.Votes)),
+		Tally:       make(map[common.Address]Tally),
+		TallyStakes: make([]*TallyStake, len(s.TallyStakes)), // Abhi
+		StakeSigner: s.StakeSigner,                           // Abhi
 	}
 	for signer := range s.Signers {
 		cpy.Signers[signer] = struct{}{}
@@ -148,7 +154,7 @@ func (s *Snapshot) copy() *Snapshot {
 		cpy.Tally[address] = tally
 	}
 	copy(cpy.Votes, s.Votes)
-	copy(cpy.TallyStakes,s.TallyStakes)
+	copy(cpy.TallyStakes, s.TallyStakes)
 
 	return cpy
 }
@@ -242,14 +248,13 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		if _, ok := snap.Signers[signer]; !ok {
 			log.Info("apply 240 error")
 			//return nil, errUnauthorizedSigner
-	}
+		}
 		for _, recent := range snap.Recents {
 			if recent == signer {
 				//return nil, errRecentlySigned
 				log.Info("recently signed")
 			}
 		}
-
 
 		snap.Recents[number] = signer
 
@@ -268,14 +273,14 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		//var authorize bool
 		var in_stakes uint64 // Abhi
 
-	/*	switch {
-		case bytes.Equal(header.Nonce[:], nonceAuthVote):
-			authorize = true
-		case bytes.Equal(header.Nonce[:], nonceDropVote):
-			authorize = false
-		default:
-			return nil, errInvalidVote
-		}*/
+		/*	switch {
+			case bytes.Equal(header.Nonce[:], nonceAuthVote):
+				authorize = true
+			case bytes.Equal(header.Nonce[:], nonceDropVote):
+				authorize = false
+			default:
+				return nil, errInvalidVote
+			}*/
 		in_stakes = header.Nonce.Uint64() // Abhi
 		/*if snap.cast(header.Coinbase, authorize) {
 			snap.Votes = append(snap.Votes, &Vote{
@@ -331,45 +336,17 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			delete(snap.Tally, header.Coinbase)
 		}
 
-
 		// Abhi Our max finding algo
 
 		max_stake := uint64(00)
 		var max_staked_address common.Address
-
-
-
-
-		/*for i,sa := range snap.TallyStakes {
-			log.Info(string(i))
-			log.Info(string(sa.OStakes))
-			log.Info(sa.Owner.String())
-
-			if max_stake< sa.OStakes{
-				max_stake = sa.OStakes
-				max_staked_address = sa.Owner
-			}
-		}*/
-
-		//log.Info(string(len(snap.TallyStakes)))
-
-
-		for i := 0; i<len(snap.TallyStakes); i++{
-			//log.Info(string(i))
-		//	fmt.Println(i,"iterater")
-		//	log.Info("normal print")
-		//	log.Info(string(snap.TallyStakes[i].OStakes))
-		//	log.Info(snap.TallyStakes[i].Owner.String())
-
-			if max_stake< snap.TallyStakes[i].OStakes{
-				max_stake = snap.TallyStakes[i].OStakes
-				max_staked_address = snap.TallyStakes[i].Owner
+		for i := 0; i < len(snap.TallyDelegatedStake); i++ {
+			if max_stake < snap.TallyDelegatedStake[i].OStakes {
+				max_stake = snap.TallyDelegatedStake[i].OStakes
+				max_staked_address = snap.TallyDelegatedStake[i].Owner
 			}
 
 		}
-
-
-
 		snap.StakeSigner = max_staked_address
 		// If we're taking too much time (ecrecover), notify the user once a while
 		if time.Since(logged) > 8*time.Second {
