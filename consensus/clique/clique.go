@@ -177,9 +177,9 @@ type Clique struct {
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
-	proposals map[common.Address]bool // Current list of proposals we are pushing
-	stakes    map[common.Address]uint64  // stakes and owners (Abhi)
-	stake	  uint64
+	proposals map[common.Address]bool   // Current list of proposals we are pushing
+	stakes    map[common.Address]uint64 // stakes and owners (Abhi)
+	stake     uint64
 
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
@@ -201,14 +201,14 @@ func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
-
 	return &Clique{
 		config:     &conf,
 		db:         db,
 		recents:    recents,
 		signatures: signatures,
 		proposals:  make(map[common.Address]bool),
-		stakes : make(map[common.Address]uint64), // Abhi
+		stakes:     make(map[common.Address]uint64), // Abhi
+
 	}
 }
 
@@ -387,8 +387,6 @@ func (c *Clique) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 				//log.Info(signers[0].String())
 				//log.Info(signers[1].String())
 
-
-
 				for i := 0; i < len(signers); i++ {
 					copy(signers[i][:], checkpoint.Extra[extraVanity+i*common.AddressLength:])
 				}
@@ -480,13 +478,13 @@ func (c *Clique) verifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 		return err
 	}
 	if _, ok := snap.Signers[signer]; !ok {
-	//	return errUnauthorizedSigner
+		//	return errUnauthorizedSigner
 	}
 	for seen, recent := range snap.Recents {
 		if recent == signer {
 			// Signer is among recents, only fail if the current block doesn't shift it out
 			if limit := uint64(len(snap.Signers)/2 + 1); seen > number-limit {
-			//	return errRecentlySigned
+				//	return errRecentlySigned
 			}
 		}
 	}
@@ -534,15 +532,15 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			}
 		} */
 		// Abhi My code
-	/*	for address := range c.stakes {
+		/*	for address := range c.stakes {
 
-			incoming_addresses = append(incoming_addresses,address)
+				incoming_addresses = append(incoming_addresses,address)
 
-		}
+			}
 
-	 */
+		*/
 		// If there's pending proposals, cast a vote on them
-	/*	if len(addresses) > 0 {
+		/*	if len(addresses) > 0 {
 			header.Coinbase = addresses[rand.Intn(len(addresses))]
 			if c.proposals[header.Coinbase] {
 				copy(header.Nonce[:], nonceAuthVote)
@@ -550,13 +548,13 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 				copy(header.Nonce[:], nonceDropVote)
 			}
 		}*/
-	var n types.BlockNonce
-	log.Info("printing stakes from stakes")
-	//fmt.Println(c.stakes[header.Coinbase])
+		var n types.BlockNonce
+		log.Info("printing stakes from stakes")
+		//fmt.Println(c.stakes[header.Coinbase])
 
-		if c.stake  > 0 {
-		//	header.Coinbase = incoming_addresses[rand.Intn(len(incoming_addresses))]
-			binary.BigEndian.PutUint64(n[:],c.stake)
+		if c.stake > 0 {
+			//	header.Coinbase = incoming_addresses[rand.Intn(len(incoming_addresses))]
+			binary.BigEndian.PutUint64(n[:], c.stake)
 			header.Nonce = n // Abhi
 			log.Info("printing Nonce")
 			fmt.Println(header.Nonce.Uint64())
@@ -565,7 +563,7 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	}
 	// Set the correct difficulty
 	//header.Difficulty = calcDifficulty(snap, c.signer)
-     header.Difficulty=big.NewInt(1)
+	header.Difficulty = big.NewInt(1)
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
@@ -628,19 +626,19 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 // the local signing credentials.
 func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
-   log.Info("Sealing started")
+	log.Info("Sealing started")
 	// Sealing the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
 		return errUnknownBlock
 	}
 	// For 0-period chains, refuse to seal empty blocks (no reward but would spin sealing)
-/*	if c.config.Period == 0 && len(block.Transactions()) == 0 {
-		log.Info("Sealing paused, waiting for transactions")
-		return nil
-	}
+	/*	if c.config.Period == 0 && len(block.Transactions()) == 0 {
+			log.Info("Sealing paused, waiting for transactions")
+			return nil
+		}
 
- */
+	*/
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
 	signer, signFn := c.signer, c.signFn
@@ -651,10 +649,10 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	if err != nil {
 		return err
 	}
-/*	if _, authorized := snap.Signers[signer]; !authorized {
-		return errUnauthorizedSigner
-	}
-*/
+	/*	if _, authorized := snap.Signers[signer]; !authorized {
+			return errUnauthorizedSigner
+		}
+	*/
 	log.Info(snap.StakeSigner.String())
 	//log.Info("______")
 	//log.Info(signer.String())
@@ -664,18 +662,16 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	fmt.Println("printing block.Transactions()")
 	fmt.Println(len(block.Transactions()))
 
-
-	if header.Nonce.Uint64() != 0 && len(block.Transactions())==0 {
+	if header.Nonce.Uint64() != 0 && len(block.Transactions()) == 0 {
 		log.Info("sending stakes to others and Transactions are zero")
 		flag = 1
 
 	}
-	 if signer != snap.StakeSigner && flag==0 {
-		 return errUnauthorizedSigner
+	if signer != snap.StakeSigner && flag == 0 {
+		fmt.Println(snap.StakeSigner)
+		return errUnauthorizedSigner
 
-
-	 }
-
+	}
 
 	// If we're amongst the recent signers, wait for the next block
 	/*for seen, recent := range snap.Recents {
@@ -687,7 +683,6 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 			}
 		}
 	}*/
-
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
@@ -719,12 +714,12 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
 		}
 	}()
-/*	var x types.BlockNonce
-	var ii uint64
-	ii = 0
-	binary.BigEndian.PutUint64(x[:],ii)
+	/*	var x types.BlockNonce
+		var ii uint64
+		ii = 0
+		binary.BigEndian.PutUint64(x[:],ii)
 
-	header.Nonce = x*/
+		header.Nonce = x*/
 	return nil
 }
 

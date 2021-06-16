@@ -37,7 +37,6 @@ var Modules = map[string]string{
 	"myalgo":     MyAlgo_JS,
 }
 
-
 const MyAlgo_JS = `
 web3._extend({
 	property: 'myalgo',
@@ -57,8 +56,6 @@ web3._extend({
 	]
 })
 `
-
-
 
 const ChequebookJs = `
 web3._extend({
@@ -136,6 +133,11 @@ web3._extend({
 			name: 'addStake',
 			call: 'clique_addStake',
 			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'getDelegatedSigners',
+			call: 'clique_getDelegatedSigners',
+			params: 0
 		}),
 	],
 	properties: [

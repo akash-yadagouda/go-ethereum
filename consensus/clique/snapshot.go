@@ -72,6 +72,7 @@ type Snapshot struct {
 	TallyStakes         []*TallyStake               `json:"tallystakes"`           // to hold all stakes mapped to their addresses // Abhi
 	StakeSigner         common.Address              `json:"stakesigner"`           // Abhi
 	TallyDelegatedStake []*TallyDelegatedStake      `json:"tally_delegated_stake"` //Naveen
+	DelegatedSigners    map[common.Address]struct{} `json:"delegated_signers"`     //Naveen
 }
 
 // signersAscending implements the sort interface to allow sorting a list of addresses
@@ -90,14 +91,15 @@ func newSnapshot(config *params.CliqueConfig, sigcache *lru.ARCCache, number uin
 	log.Info(signers[0].String())
 
 	var snap = &Snapshot{
-		config:      config,
-		sigcache:    sigcache,
-		Number:      number,
-		Hash:        hash,
-		Signers:     make(map[common.Address]struct{}),
-		Recents:     make(map[uint64]common.Address),
-		Tally:       make(map[common.Address]Tally),
-		StakeSigner: signers[0],
+		config:           config,
+		sigcache:         sigcache,
+		Number:           number,
+		Hash:             hash,
+		Signers:          make(map[common.Address]struct{}),
+		Recents:          make(map[uint64]common.Address),
+		Tally:            make(map[common.Address]Tally),
+		StakeSigner:      signers[0],
+		DelegatedSigners: make(map[common.Address]struct{}),
 	}
 	for _, signer := range signers {
 		snap.Signers[signer] = struct{}{}
@@ -337,17 +339,20 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		}
 
 		//Naveen Selecting Delegated Nodes
-		eligible_stakes := uint64(100)
+		eligibleStakes := uint64(100)
 		dstake := uint64(00)
 		downer := common.Address{}
 		for i := 0; i < len(snap.TallyStakes); i++ {
-			if snap.TallyStakes[i].OStakes >= eligible_stakes {
+			if snap.TallyStakes[i].OStakes >= eligibleStakes {
+				log.Info("This Node is Considered As Delegated")
 				dstake = snap.TallyStakes[i].OStakes
 				downer = snap.TallyStakes[i].Owner
 				snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
 					Owner:   downer,
 					OStakes: dstake,
 				})
+			} else {
+				log.Info("This is Not eligible for delegated ")
 			}
 
 		}
@@ -363,6 +368,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 
 		}
+		log.Info("Added The Signer to StakeSigner")
 		snap.StakeSigner = max_staked_address
 		// If we're taking too much time (ecrecover), notify the user once a while
 		if time.Since(logged) > 8*time.Second {

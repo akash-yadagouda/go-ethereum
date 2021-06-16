@@ -91,14 +91,13 @@ func (api *API) AddStake(stake uint64) {
 }
 
 //Naveen printing Delegated Signers
-func (api *API) GetDeligatedSigners([]common.Address) {
-	for i := 0; i < len(api.clique.TallyDelegatedStake); i++ {
-
-	}
-
+func (api *API) GetDelegatedSigners() {
+	log.Info("Getting Signers")
+	fmt.Println(api.clique.signer)
 }
 
-// GetSignersAtHash retrieves the list of authorized signers at the specified block.
+//GetSignersAtHash retrieves the
+// list of authorized signers at the specified block.
 func (api *API) GetSignersAtHash(hash common.Hash) ([]common.Address, error) {
 	header := api.chain.GetHeaderByHash(hash)
 	if header == nil {
