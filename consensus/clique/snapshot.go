@@ -31,6 +31,19 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
+const (
+	// This is the amount of time spent waiting in between redialing a certain node. The
+	// limit is a bit higher than inboundThrottleTime to prevent failing dials in small
+	// private networks
+
+	// Config for the  Round Robin Time
+	dialStatsLogInterval = 100 * time.Second // For Each time
+
+	// Endpoint resolution is throttled with bounded backoff.
+	initialResolveDelay = 60 * time.Second
+	maxResolveDelay     = time.Hour
+)
+
 // Vote represents a single vote that an authorized signer made to modify the
 // list of authorizations.
 type Vote struct {
@@ -413,17 +426,29 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			})
 		}
 
-		for i := 0; i < 1; i++ {
+		for i := 0; i < len(snap.TallyDelegatedStake); i++ {
 			fmt.Println(snap.TallyDelegatedStake[i].OStakes)
 			fmt.Println(snap.TallyDelegatedStake[i].Owner)
-
 		}
+		//tejas
+		if snap.StakeSigner.String() == "0x0000000000000000000000000000000000000000" {
+			snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
+		} else {
+			temp := snap.StakeSigner
 
-		posistion := 0
-		log.Info("Added The Signer to StakeSigner")
-		fmt.Println(snap.TallyDelegatedStake[posistion].Owner)
-		snap.StakeSigner = snap.TallyDelegatedStake[posistion].Owner
-		posistion = posistion + 1
+			for i := 0; i < len(snap.TallyDelegatedStake); i++ {
+				if temp == snap.TallyDelegatedStake[i].Owner {
+					if i == len(snap.TallyDelegatedStake) {
+						snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
+						break
+					} else {
+						snap.StakeSigner = snap.TallyDelegatedStake[i+1].Owner
+						break
+					}
+
+				}
+			}
+		}
 
 		// Naveen Our max finding algo
 

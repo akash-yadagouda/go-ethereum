@@ -668,9 +668,9 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 
 	}
 	if signer != snap.StakeSigner && flag == 0 {
-		fmt.Println(snap.StakeSigner)
 		return errUnauthorizedSigner
-
+	} else {
+		snap.TallyDelegatedStake[2].OStakes = snap.TallyDelegatedStake[2].OStakes + 10
 	}
 
 	// If we're amongst the recent signers, wait for the next block
