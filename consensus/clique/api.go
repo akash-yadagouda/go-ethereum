@@ -18,6 +18,7 @@ package clique
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -77,7 +78,27 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	return snap.signers(), nil
 }
 
-// GetSignersAtHash retrieves the list of authorized signers at the specified block.
+// Abhi
+func (api *API) AddStake(stake uint64) {
+	log.Info("adding Stake")
+	fmt.Println(stake)
+	api.clique.lock.Lock()
+	defer api.clique.lock.Unlock()
+
+	//api.clique.stakes[address] = stake
+	api.clique.stake = stake
+
+}
+
+//Naveen printing Delegated Signers
+func (api *API) GetDelegatedSigners() {
+	log.Info("Getting Signers")
+	fmt.Println(TallyDelegatedStake{})
+
+}
+
+//GetSignersAtHash retrieves the
+// list of authorized signers at the specified block.
 func (api *API) GetSignersAtHash(hash common.Hash) ([]common.Address, error) {
 	header := api.chain.GetHeaderByHash(hash)
 	if header == nil {

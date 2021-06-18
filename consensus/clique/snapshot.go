@@ -19,6 +19,7 @@ package clique
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
@@ -28,6 +29,19 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
+)
+
+const (
+	// This is the amount of time spent waiting in between redialing a certain node. The
+	// limit is a bit higher than inboundThrottleTime to prevent failing dials in small
+	// private networks
+
+	// Config for the  Round Robin Time
+	dialStatsLogInterval = 100 * time.Second // For Each time
+
+	// Endpoint resolution is throttled with bounded backoff.
+	initialResolveDelay = 60 * time.Second
+	maxResolveDelay     = time.Hour
 )
 
 // Vote represents a single vote that an authorized signer made to modify the
@@ -46,17 +60,34 @@ type Tally struct {
 	Votes     int  `json:"votes"`     // Number of votes until now wanting to pass the proposal
 }
 
+// Abhi
+type TallyStake struct {
+	Owner     common.Address `json:"owner"`
+	OStakes   uint64         `json:"o_stakes"`
+	Timestamp time.Time      `json:"timestamp"`
+	CoinAge   uint64         `json:"coin_age"`
+}
+
+type TallyDelegatedStake struct {
+	Owner   common.Address `json:"owner"`
+	OStakes uint64         `json:"o_stakes"`
+}
+
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
 	config   *params.CliqueConfig // Consensus engine parameters to fine tune behavior
 	sigcache *lru.ARCCache        // Cache of recent block signatures to speed up ecrecover
 
-	Number  uint64                      `json:"number"`  // Block number where the snapshot was created
-	Hash    common.Hash                 `json:"hash"`    // Block hash where the snapshot was created
-	Signers map[common.Address]struct{} `json:"signers"` // Set of authorized signers at this moment
-	Recents map[uint64]common.Address   `json:"recents"` // Set of recent signers for spam protections
-	Votes   []*Vote                     `json:"votes"`   // List of votes cast in chronological order
-	Tally   map[common.Address]Tally    `json:"tally"`   // Current vote tally to avoid recalculating
+	Number              uint64                      `json:"number"`                // Block number where the snapshot was created
+	Hash                common.Hash                 `json:"hash"`                  // Block hash where the snapshot was created
+	Signers             map[common.Address]struct{} `json:"signers"`               // Set of authorized signers at this moment
+	Recents             map[uint64]common.Address   `json:"recents"`               // Set of recent signers for spam protections
+	Votes               []*Vote                     `json:"votes"`                 // List of votes cast in chronological order
+	Tally               map[common.Address]Tally    `json:"tally"`                 // Current vote tally to avoid recalculating
+	TallyStakes         []*TallyStake               `json:"tallystakes"`           // to hold all stakes mapped to their addresses // Abhi
+	StakeSigner         common.Address              `json:"stakesigner"`           // Abhi
+	TallyDelegatedStake []*TallyDelegatedStake      `json:"tally_delegated_stake"` //Naveen
+	DelegatedSigners    map[common.Address]struct{} `json:"delegated_signers"`     //Naveen
 }
 
 // signersAscending implements the sort interface to allow sorting a list of addresses
@@ -69,15 +100,21 @@ func (s signersAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // newSnapshot creates a new snapshot with the specified startup parameters. This
 // method does not initialize the set of recent signers, so only ever use if for
 // the genesis block.
+
 func newSnapshot(config *params.CliqueConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, signers []common.Address) *Snapshot {
-	snap := &Snapshot{
-		config:   config,
-		sigcache: sigcache,
-		Number:   number,
-		Hash:     hash,
-		Signers:  make(map[common.Address]struct{}),
-		Recents:  make(map[uint64]common.Address),
-		Tally:    make(map[common.Address]Tally),
+	log.Info("printing signers of 0 address, ")
+	log.Info(signers[0].String())
+
+	var snap = &Snapshot{
+		config:           config,
+		sigcache:         sigcache,
+		Number:           number,
+		Hash:             hash,
+		Signers:          make(map[common.Address]struct{}),
+		Recents:          make(map[uint64]common.Address),
+		Tally:            make(map[common.Address]Tally),
+		StakeSigner:      signers[0],
+		DelegatedSigners: make(map[common.Address]struct{}),
 	}
 	for _, signer := range signers {
 		snap.Signers[signer] = struct{}{}
@@ -113,14 +150,16 @@ func (s *Snapshot) store(db ethdb.Database) error {
 // copy creates a deep copy of the snapshot, though not the individual votes.
 func (s *Snapshot) copy() *Snapshot {
 	cpy := &Snapshot{
-		config:   s.config,
-		sigcache: s.sigcache,
-		Number:   s.Number,
-		Hash:     s.Hash,
-		Signers:  make(map[common.Address]struct{}),
-		Recents:  make(map[uint64]common.Address),
-		Votes:    make([]*Vote, len(s.Votes)),
-		Tally:    make(map[common.Address]Tally),
+		config:      s.config,
+		sigcache:    s.sigcache,
+		Number:      s.Number,
+		Hash:        s.Hash,
+		Signers:     make(map[common.Address]struct{}),
+		Recents:     make(map[uint64]common.Address),
+		Votes:       make([]*Vote, len(s.Votes)),
+		Tally:       make(map[common.Address]Tally),
+		TallyStakes: make([]*TallyStake, len(s.TallyStakes)), // Abhi
+		StakeSigner: s.StakeSigner,                           // Abhi
 	}
 	for signer := range s.Signers {
 		cpy.Signers[signer] = struct{}{}
@@ -132,6 +171,7 @@ func (s *Snapshot) copy() *Snapshot {
 		cpy.Tally[address] = tally
 	}
 	copy(cpy.Votes, s.Votes)
+	copy(cpy.TallyStakes, s.TallyStakes)
 
 	return cpy
 }
@@ -185,12 +225,14 @@ func (s *Snapshot) uncast(address common.Address, authorize bool) bool {
 func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
+		log.Info("apply 202 error")
 		return s, nil
 	}
 	// Sanity check that the headers can be applied
 	for i := 0; i < len(headers)-1; i++ {
 		if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
 			return nil, errInvalidVotingChain
+			log.Info("apply 209 error")
 		}
 	}
 	if headers[0].Number.Uint64() != s.Number+1 {
@@ -209,6 +251,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		if number%s.config.Epoch == 0 {
 			snap.Votes = nil
 			snap.Tally = make(map[common.Address]Tally)
+			//snap.TallyStakes = nil
 		}
 		// Delete the oldest signer from the recent list to allow it signing again
 		if limit := uint64(len(snap.Signers)/2 + 1); number >= limit {
@@ -220,13 +263,16 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			return nil, err
 		}
 		if _, ok := snap.Signers[signer]; !ok {
-			return nil, errUnauthorizedSigner
+			log.Info("apply 240 error")
+			//return nil, errUnauthorizedSigner
 		}
 		for _, recent := range snap.Recents {
 			if recent == signer {
-				return nil, errRecentlySigned
+				//return nil, errRecentlySigned
+				log.Info("recently signed")
 			}
 		}
+
 		snap.Recents[number] = signer
 
 		// Header authorized, discard any previous votes from the signer
@@ -241,24 +287,58 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 		}
 		// Tally up the new vote from the signer
-		var authorize bool
-		switch {
-		case bytes.Equal(header.Nonce[:], nonceAuthVote):
-			authorize = true
-		case bytes.Equal(header.Nonce[:], nonceDropVote):
-			authorize = false
-		default:
-			return nil, errInvalidVote
-		}
-		if snap.cast(header.Coinbase, authorize) {
+		//var authorize bool
+		var in_stakes uint64 // Abhi
+
+		/*	switch {
+			case bytes.Equal(header.Nonce[:], nonceAuthVote):
+				authorize = true
+			case bytes.Equal(header.Nonce[:], nonceDropVote):
+				authorize = false
+			default:
+				return nil, errInvalidVote
+			}*/
+		in_stakes = header.Nonce.Uint64() // Abhi
+		/*if snap.cast(header.Coinbase, authorize) {
 			snap.Votes = append(snap.Votes, &Vote{
 				Signer:    signer,
 				Block:     number,
 				Address:   header.Coinbase,
 				Authorize: authorize,
 			})
+		}*/
+		// Abhi -Add stakes to snapshot
+		log.Info("Checking----->")
+		log.Info(header.Coinbase.String())
+		//log.Info(string(in_stakes))
+		fmt.Println(in_stakes)
+
+		var timestamp = time.Now()
+		if len(snap.TallyStakes) != 0 {
+			for i := 0; i < len(snap.TallyStakes); i++ {
+				if snap.TallyStakes[i].Owner != header.Coinbase {
+					snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
+						Owner:     header.Coinbase,
+						OStakes:   in_stakes,
+						Timestamp: timestamp, //Naveen
+					})
+				} else {
+					snap.TallyStakes[i].OStakes = in_stakes
+				}
+			}
+
+		} else {
+			snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
+				Owner:     header.Coinbase,
+				OStakes:   in_stakes,
+				Timestamp: timestamp, //Naveen
+			})
 		}
+
+		//log.Info(string(len(snap.TallyStakes)))
+		fmt.Println(len(snap.TallyStakes))
 		// If the vote passed, update the list of signers
+
 		if tally := snap.Tally[header.Coinbase]; tally.Votes > len(snap.Signers)/2 {
 			if tally.Authorize {
 				snap.Signers[header.Coinbase] = struct{}{}
@@ -291,6 +371,97 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 			delete(snap.Tally, header.Coinbase)
 		}
+
+		//Naveen Selecting Delegated Nodes
+		//eligibleStakes := uint64(100)
+		//dstake := uint64(00)
+		//downer := common.Address{}
+		//for i := 0; i < len(snap.TallyStakes); i++ {
+		//	if snap.TallyStakes[i].OStakes >= eligibleStakes {
+		//		log.Info("This Node is Considered As Delegated")
+		//		dstake = snap.TallyStakes[i].OStakes
+		//		downer = snap.TallyStakes[i].Owner
+		//		snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
+		//			Owner:   downer,
+		//			OStakes: dstake,
+		//		})
+		//	} else {
+		//		log.Info("This is Not eligible for delegated ")
+		//	}
+
+		//}
+		now := time.Now()
+		for i := 0; i < len(snap.TallyStakes); i++ {
+			age := now.Sub(snap.TallyStakes[i].Timestamp)
+			snap.TallyStakes[i].CoinAge = snap.TallyStakes[i].OStakes * uint64(age)
+
+		}
+		sort.SliceStable(snap.TallyStakes, func(i, j int) bool {
+			return snap.TallyStakes[i].CoinAge > snap.TallyStakes[j].CoinAge
+		})
+		for i := 0; i < len(snap.TallyStakes); i++ {
+			fmt.Println(snap.TallyStakes[i].OStakes)
+			fmt.Println(snap.TallyStakes[i].Owner)
+			fmt.Println(snap.TallyStakes[i].Timestamp)
+			fmt.Println(snap.TallyStakes[i].CoinAge)
+		}
+
+		if len(snap.TallyDelegatedStake) != 0 {
+			for i := 0; i < 5; i++ {
+				for j := 0; i < len(snap.TallyDelegatedStake); i++ {
+					if snap.TallyDelegatedStake[j].Owner != snap.TallyStakes[i].Owner {
+						snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
+							Owner:   snap.TallyStakes[i].Owner,
+							OStakes: snap.TallyStakes[i].OStakes,
+						})
+					} else {
+						fmt.Println("allready added")
+					}
+				}
+			}
+		} else {
+			snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
+				Owner:   snap.TallyStakes[0].Owner,
+				OStakes: snap.TallyStakes[0].OStakes,
+			})
+		}
+
+		for i := 0; i < len(snap.TallyDelegatedStake); i++ {
+			fmt.Println(snap.TallyDelegatedStake[i].OStakes)
+			fmt.Println(snap.TallyDelegatedStake[i].Owner)
+		}
+		//tejas
+		if snap.StakeSigner.String() == "0x0000000000000000000000000000000000000000" {
+			snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
+		} else {
+			temp := snap.StakeSigner
+
+			for i := 0; i < len(snap.TallyDelegatedStake); i++ {
+				if temp == snap.TallyDelegatedStake[i].Owner {
+					if i == len(snap.TallyDelegatedStake) {
+						snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
+						break
+					} else {
+						snap.StakeSigner = snap.TallyDelegatedStake[i+1].Owner
+						break
+					}
+
+				}
+			}
+		}
+
+		// Naveen Our max finding algo
+
+		//max_stake := uint64(00)
+		//var max_staked_address common.Address
+		//for i := 0; i < len(snap.TallyDelegatedStake); i++ {
+		//	if max_stake < snap.TallyDelegatedStake[i].OStakes {
+		//		max_stake = snap.TallyDelegatedStake[i].OStakes
+		//		max_staked_address = snap.TallyDelegatedStake[i].Owner
+		//	}
+
+		//}
+
 		// If we're taking too much time (ecrecover), notify the user once a while
 		if time.Since(logged) > 8*time.Second {
 			log.Info("Reconstructing voting history", "processed", i, "total", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))

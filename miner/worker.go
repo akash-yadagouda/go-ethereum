@@ -388,6 +388,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					continue
 				}
 				commit(true, commitInterruptResubmit)
+
 			}
 
 		case interval := <-w.resubmitIntervalCh:
@@ -852,7 +853,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 // commitNewWork generates several new sealing tasks based on the parent block.
 func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
+
 	w.mu.RLock()
+
+
 	defer w.mu.RUnlock()
 
 	tstart := time.Now()

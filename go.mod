@@ -6,6 +6,7 @@ require (
 	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
 	github.com/Azure/azure-storage-blob-go v0.7.0
 	github.com/Azure/go-autorest/autorest/adal v0.8.0 // indirect
+	github.com/Knetic/govaluate v3.0.0+incompatible
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
 	github.com/VictoriaMetrics/fastcache v1.5.7
 	github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847
@@ -48,6 +49,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.2-0.20190409134802-7e037d187b0c
 	github.com/pborman/uuid v0.0.0-20170112150404-1b00554d8222
 	github.com/peterh/liner v1.1.1-0.20190123174540-a2c9a5303de7
+	github.com/pkg/errors v0.8.1
 	github.com/prometheus/tsdb v0.6.2-0.20190402121629-4f204dcbc150
 	github.com/rjeczalik/notify v0.9.1
 	github.com/rs/cors v0.0.0-20160617231935-a62a804a8a00

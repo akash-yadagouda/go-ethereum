@@ -34,7 +34,28 @@ var Modules = map[string]string{
 	"txpool":     TxpoolJs,
 	"les":        LESJs,
 	"lespay":     LESPayJs,
+	"myalgo":     MyAlgo_JS,
 }
+
+const MyAlgo_JS = `
+web3._extend({
+	property: 'myalgo',
+	methods: [
+		new web3._extend.Method({
+			name: 'echoNumber',
+			call: 'myalgo_echoNumber',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'addStake',
+			call: 'myalgo_addStake',
+			params: 1,
+			inputFormatter: [null]
+		}),
+	]
+})
+`
 
 const ChequebookJs = `
 web3._extend({
@@ -106,6 +127,16 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'status',
 			call: 'clique_status',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'addStake',
+			call: 'clique_addStake',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'getDelegatedSigners',
+			call: 'clique_getDelegatedSigners',
 			params: 0
 		}),
 	],
