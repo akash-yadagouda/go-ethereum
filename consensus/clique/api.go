@@ -93,7 +93,6 @@ func (api *API) AddStake(stake uint64) {
 //Naveen printing Delegated Signers
 func (api *API) GetDelegatedSigners() {
 	log.Info("Getting Signers")
-	fmt.Println(TallyDelegatedStake{})
 
 }
 

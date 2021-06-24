@@ -309,21 +309,50 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		}*/
 		// Abhi -Add stakes to snapshot
 		log.Info("Checking----->")
-		log.Info(header.Coinbase.String())
+		//log.Info(header.Coinbase.String())
+		fmt.Println("coinbase", header.Coinbase)
 		//log.Info(string(in_stakes))
 		fmt.Println(in_stakes)
+		var flag bool
+		var posistion int
+		flag = false
+		for i := 0; i < len(snap.TallyStakes); i++ {
+			if snap.TallyStakes[i].Owner == header.Coinbase {
+				flag = true
+				posistion = i
+			}
+		}
+		if flag == false {
+			var timestamp = time.Now()
+			snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
+				Owner:     header.Coinbase,
+				OStakes:   in_stakes,
+				Timestamp: timestamp, //Naveen
+			})
+		} else {
+			if snap.TallyStakes[posistion].OStakes != in_stakes {
+				snap.TallyStakes[posistion].OStakes = in_stakes
+			} else {
+				fmt.Println("Same Stakes")
+			}
 
-		var timestamp = time.Now()
+		}
+
+		/*fmt.Println(len(snap.TallyStakes))
 		if len(snap.TallyStakes) != 0 {
 			for i := 0; i < len(snap.TallyStakes); i++ {
-				if snap.TallyStakes[i].Owner != header.Coinbase {
+				if snap.TallyStakes[i].Owner == header.Coinbase {
+					fmt.Println("Stakes Updated Successfully")
+					snap.TallyStakes[i].OStakes = in_stakes
+				} else {
+					fmt.Println("Added Successfully")
 					snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
 						Owner:     header.Coinbase,
 						OStakes:   in_stakes,
 						Timestamp: timestamp, //Naveen
+
 					})
-				} else {
-					snap.TallyStakes[i].OStakes = in_stakes
+
 				}
 			}
 
@@ -332,11 +361,12 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 				Owner:     header.Coinbase,
 				OStakes:   in_stakes,
 				Timestamp: timestamp, //Naveen
-			})
-		}
 
-		//log.Info(string(len(snap.TallyStakes)))
-		fmt.Println(len(snap.TallyStakes))
+			})
+		}*/
+
+		fmt.Println("leangth", len(snap.TallyStakes))
+
 		// If the vote passed, update the list of signers
 
 		if tally := snap.Tally[header.Coinbase]; tally.Votes > len(snap.Signers)/2 {
@@ -399,56 +429,87 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		sort.SliceStable(snap.TallyStakes, func(i, j int) bool {
 			return snap.TallyStakes[i].CoinAge > snap.TallyStakes[j].CoinAge
 		})
+		log.Info("Nodes in the Network")
 		for i := 0; i < len(snap.TallyStakes); i++ {
 			fmt.Println(snap.TallyStakes[i].OStakes)
 			fmt.Println(snap.TallyStakes[i].Owner)
 			fmt.Println(snap.TallyStakes[i].Timestamp)
 			fmt.Println(snap.TallyStakes[i].CoinAge)
 		}
-
-		if len(snap.TallyDelegatedStake) != 0 {
-			for i := 0; i < 5; i++ {
-				for j := 0; i < len(snap.TallyDelegatedStake); i++ {
-					if snap.TallyDelegatedStake[j].Owner != snap.TallyStakes[i].Owner {
-						snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
-							Owner:   snap.TallyStakes[i].Owner,
-							OStakes: snap.TallyStakes[i].OStakes,
-						})
-					} else {
-						fmt.Println("allready added")
-					}
+		var f1 bool
+		f1 = false
+		for i := 0; i < len(snap.TallyStakes); i++ {
+			for j := 0; j < len(snap.TallyDelegatedStake); j++ {
+				if snap.TallyStakes[i].Owner == snap.TallyDelegatedStake[j].Owner {
+					f1 = true
+					snap.TallyDelegatedStake[j].OStakes = snap.TallyStakes[i].OStakes
 				}
 			}
-		} else {
-			snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
-				Owner:   snap.TallyStakes[0].Owner,
-				OStakes: snap.TallyStakes[0].OStakes,
-			})
+			if f1 == false {
+				if len(snap.TallyDelegatedStake) <= 5 {
+					snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
+						Owner:   snap.TallyStakes[i].Owner,
+						OStakes: snap.TallyStakes[i].OStakes,
+					})
+				}
+			}
 		}
 
+		//if len(snap.TallyDelegatedStake) != 0 {
+		//	for i := 0; i < len(snap.TallyStakes); i++ {
+		//		for j := 0; i < len(snap.TallyDelegatedStake); i++ {
+		//			if snap.TallyDelegatedStake[j].Owner != snap.TallyStakes[i].Owner {
+		//				if len(snap.TallyDelegatedStake)<=5{
+		//					fmt.Println("Added to delegated")
+		//					fmt.Println( snap.TallyStakes[i].Owner)
+		//					snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
+		//						Owner:   snap.TallyStakes[i].Owner,
+		//						OStakes: snap.TallyStakes[i].OStakes,
+		//					})
+		//				}
+		//
+		//			} else {
+		//				fmt.Println("allready added")
+		//			}
+		//		}
+		//	}
+
+		//} else {
+		//	snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
+		//		Owner:   snap.TallyStakes[0].Owner,
+		//	OStakes: snap.TallyStakes[0].OStakes,
+		//	})
+		//	}
+		log.Info("Delegated Nodes")
 		for i := 0; i < len(snap.TallyDelegatedStake); i++ {
 			fmt.Println(snap.TallyDelegatedStake[i].OStakes)
 			fmt.Println(snap.TallyDelegatedStake[i].Owner)
 		}
 		//tejas
-		if snap.StakeSigner.String() == "0x0000000000000000000000000000000000000000" {
-			snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
-		} else {
-			temp := snap.StakeSigner
-
-			for i := 0; i < len(snap.TallyDelegatedStake); i++ {
-				if temp == snap.TallyDelegatedStake[i].Owner {
-					if i == len(snap.TallyDelegatedStake) {
-						snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
-						break
-					} else {
-						snap.StakeSigner = snap.TallyDelegatedStake[i+1].Owner
-						break
-					}
-
-				}
-			}
-		}
+		//if snap.StakeSigner.String() == "0x0000000000000000000000000000000000000000" {
+		//	snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
+		//
+		//	fmt.Println("Signer",snap.TallyDelegatedStake[0].Owner)
+		//
+		//} else {
+		//	temp := snap.StakeSigner
+		//
+		//	for i := 0; i < len(snap.TallyDelegatedStake); i++ {
+		//		if temp == snap.TallyDelegatedStake[i].Owner {
+		//			if i+1 == len(snap.TallyDelegatedStake) {
+		//				snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
+		//				fmt.Println("Signer",snap.TallyDelegatedStake[0].Owner)
+		//				break
+		//			} else {
+		//				snap.StakeSigner = snap.TallyDelegatedStake[i+1].Owner
+		//				fmt.Println("Signer",snap.TallyDelegatedStake[i+1].Owner)
+		//				break
+		//			}
+		//			break
+		//		}
+		//
+		//	}
+		//}
 
 		// Naveen Our max finding algo
 
@@ -461,7 +522,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		//	}
 
 		//}
-
+		//time.Sleep(10*time.Second)
 		// If we're taking too much time (ecrecover), notify the user once a while
 		if time.Since(logged) > 8*time.Second {
 			log.Info("Reconstructing voting history", "processed", i, "total", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))
