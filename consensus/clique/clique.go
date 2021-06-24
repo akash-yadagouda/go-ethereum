@@ -181,12 +181,14 @@ type Clique struct {
 	stakes    map[common.Address]uint64 // stakes and owners (Abhi)
 	stake     uint64
 
-	signer common.Address // Ethereum address of the signing key
-	signFn SignerFn       // Signer function to authorize hashes with
-	lock   sync.RWMutex   // Protects the signer fields
+	signer    common.Address // Ethereum address of the signing key
+	signFn    SignerFn       // Signer function to authorize hashes with
+	lock      sync.RWMutex   // Protects the signer fields
+	malicious bool
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
+
 }
 
 // New creates a Clique proof-of-authority consensus engine with the initial
@@ -208,7 +210,7 @@ func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 		signatures: signatures,
 		proposals:  make(map[common.Address]bool),
 		stakes:     make(map[common.Address]uint64), // Abhi
-
+		malicious:  false,
 	}
 }
 
@@ -668,6 +670,22 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 
 	}
 
+	if c.malicious == true {
+		fmt.Println("before", c.stake)
+		c.stake = c.stake - (c.stake * 1 / 4)
+		fmt.Println("Downgrading This Node")
+		fmt.Println("After", c.stake)
+		c.malicious = false
+
+		for i := 0; i < len(snap.TallyDelegatedStake); i++ {
+			if c.signer == snap.TallyDelegatedStake[i].Owner {
+				snap.TallyDelegatedStake[i].Owner = snap.TallyStakes[5].Owner
+				snap.TallyDelegatedStake[i].OStakes = snap.TallyStakes[5].OStakes
+			}
+		}
+
+	}
+
 	// Round Robin
 	if snap.StakeSigner.String() == "0x0000000000000000000000000000000000000000" {
 		snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
@@ -693,6 +711,7 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 
 		}
 	}
+
 	log.Info("Delegated Nodes")
 	for i := 0; i < len(snap.TallyDelegatedStake); i++ {
 		fmt.Println(snap.TallyDelegatedStake[i].OStakes)

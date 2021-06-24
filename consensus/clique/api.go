@@ -90,6 +90,12 @@ func (api *API) AddStake(stake uint64) {
 
 }
 
+func (api *API) ActAsMalicious() {
+	api.clique.malicious = true
+	log.Info("You Are Now malicious Node")
+
+}
+
 //Naveen printing Delegated Signers
 func (api *API) GetDelegatedSigners() {
 	log.Info("Getting Signers")

@@ -88,6 +88,7 @@ type Snapshot struct {
 	StakeSigner         common.Address              `json:"stakesigner"`           // Abhi
 	TallyDelegatedStake []*TallyDelegatedStake      `json:"tally_delegated_stake"` //Naveen
 	DelegatedSigners    map[common.Address]struct{} `json:"delegated_signers"`     //Naveen
+	malicious           bool
 }
 
 // signersAscending implements the sort interface to allow sorting a list of addresses
@@ -308,6 +309,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			})
 		}*/
 		// Abhi -Add stakes to snapshot
+
 		log.Info("Checking----->")
 		//log.Info(header.Coinbase.String())
 		fmt.Println("coinbase", header.Coinbase)
@@ -327,7 +329,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
 				Owner:     header.Coinbase,
 				OStakes:   in_stakes,
-				Timestamp: timestamp, //Naveen
+				Timestamp: timestamp,
 			})
 		} else {
 			if snap.TallyStakes[posistion].OStakes != in_stakes {
