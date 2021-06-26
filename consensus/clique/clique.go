@@ -468,6 +468,7 @@ func (c *Clique) verifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 	if number == 0 {
 		return errUnknownBlock
 	}
+
 	// Retrieve the snapshot needed to verify this header and cache it
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
@@ -655,7 +656,7 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 			return errUnauthorizedSigner
 		}
 	*/
-	log.Info(snap.StakeSigner.String())
+	//log.Info(snap.StakeSigner.String())
 	//log.Info("______")
 	//log.Info(signer.String())
 	var flag int
@@ -676,13 +677,6 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 		fmt.Println("Downgrading This Node")
 		fmt.Println("After", c.stake)
 		c.malicious = false
-
-		for i := 0; i < len(snap.TallyDelegatedStake); i++ {
-			if c.signer == snap.TallyDelegatedStake[i].Owner {
-				snap.TallyDelegatedStake[i].Owner = snap.TallyStakes[5].Owner
-				snap.TallyDelegatedStake[i].OStakes = snap.TallyStakes[5].OStakes
-			}
-		}
 
 	}
 
@@ -718,15 +712,16 @@ func (c *Clique) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 		fmt.Println(snap.TallyDelegatedStake[i].Owner)
 	}
 	if signer != snap.StakeSigner && flag == 0 {
-		fmt.Println("Signer", snap.StakeSigner)
+		//fmt.Println("Signer", snap.StakeSigner)
 		return errUnauthorizedSigner
 	} else {
-		for i := 0; i < len(snap.TallyStakes); i++ {
-			if snap.StakeSigner == snap.TallyStakes[i].Owner {
-				snap.TallyStakes[i].OStakes = 10 + snap.TallyStakes[i].OStakes
-				fmt.Println(snap.TallyStakes[i].Owner, "Getting Rewards by mining")
-			}
-		}
+		c.stake = c.stake + 5
+		//for i := 0; i < len(snap.TallyStakes); i++ {
+		//	if snap.StakeSigner == snap.TallyStakes[i].Owner {
+		//		snap.TallyStakes[i].OStakes = 10 + snap.TallyStakes[i].OStakes
+		//		fmt.Println(snap.TallyStakes[i].Owner, "Getting Rewards by mining")
+		//	}
+		//}
 
 	}
 

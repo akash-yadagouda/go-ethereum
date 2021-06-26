@@ -60,7 +60,7 @@ type Tally struct {
 	Votes     int  `json:"votes"`     // Number of votes until now wanting to pass the proposal
 }
 
-// Abhi
+//
 type TallyStake struct {
 	Owner     common.Address `json:"owner"`
 	OStakes   uint64         `json:"o_stakes"`
@@ -340,33 +340,6 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 
 		}
 
-		/*fmt.Println(len(snap.TallyStakes))
-		if len(snap.TallyStakes) != 0 {
-			for i := 0; i < len(snap.TallyStakes); i++ {
-				if snap.TallyStakes[i].Owner == header.Coinbase {
-					fmt.Println("Stakes Updated Successfully")
-					snap.TallyStakes[i].OStakes = in_stakes
-				} else {
-					fmt.Println("Added Successfully")
-					snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
-						Owner:     header.Coinbase,
-						OStakes:   in_stakes,
-						Timestamp: timestamp, //Naveen
-
-					})
-
-				}
-			}
-
-		} else {
-			snap.TallyStakes = append(snap.TallyStakes, &TallyStake{
-				Owner:     header.Coinbase,
-				OStakes:   in_stakes,
-				Timestamp: timestamp, //Naveen
-
-			})
-		}*/
-
 		fmt.Println("leangth", len(snap.TallyStakes))
 
 		// If the vote passed, update the list of signers
@@ -404,30 +377,14 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			delete(snap.Tally, header.Coinbase)
 		}
 
-		//Naveen Selecting Delegated Nodes
-		//eligibleStakes := uint64(100)
-		//dstake := uint64(00)
-		//downer := common.Address{}
-		//for i := 0; i < len(snap.TallyStakes); i++ {
-		//	if snap.TallyStakes[i].OStakes >= eligibleStakes {
-		//		log.Info("This Node is Considered As Delegated")
-		//		dstake = snap.TallyStakes[i].OStakes
-		//		downer = snap.TallyStakes[i].Owner
-		//		snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
-		//			Owner:   downer,
-		//			OStakes: dstake,
-		//		})
-		//	} else {
-		//		log.Info("This is Not eligible for delegated ")
-		//	}
-
-		//}
+		// Finding Coin Age
 		now := time.Now()
 		for i := 0; i < len(snap.TallyStakes); i++ {
 			age := now.Sub(snap.TallyStakes[i].Timestamp)
 			snap.TallyStakes[i].CoinAge = snap.TallyStakes[i].OStakes * uint64(age)
 
 		}
+		// Sorting a Nodes Based on timestamp
 		sort.SliceStable(snap.TallyStakes, func(i, j int) bool {
 			return snap.TallyStakes[i].CoinAge > snap.TallyStakes[j].CoinAge
 		})
@@ -438,6 +395,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			fmt.Println(snap.TallyStakes[i].Timestamp)
 			fmt.Println(snap.TallyStakes[i].CoinAge)
 		}
+		snap.TallyDelegatedStake = nil
 		var f1 bool
 		f1 = false
 		for i := 0; i < len(snap.TallyStakes); i++ {
@@ -457,74 +415,12 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 		}
 
-		//if len(snap.TallyDelegatedStake) != 0 {
-		//	for i := 0; i < len(snap.TallyStakes); i++ {
-		//		for j := 0; i < len(snap.TallyDelegatedStake); i++ {
-		//			if snap.TallyDelegatedStake[j].Owner != snap.TallyStakes[i].Owner {
-		//				if len(snap.TallyDelegatedStake)<=5{
-		//					fmt.Println("Added to delegated")
-		//					fmt.Println( snap.TallyStakes[i].Owner)
-		//					snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
-		//						Owner:   snap.TallyStakes[i].Owner,
-		//						OStakes: snap.TallyStakes[i].OStakes,
-		//					})
-		//				}
-		//
-		//			} else {
-		//				fmt.Println("allready added")
-		//			}
-		//		}
-		//	}
-
-		//} else {
-		//	snap.TallyDelegatedStake = append(snap.TallyDelegatedStake, &TallyDelegatedStake{
-		//		Owner:   snap.TallyStakes[0].Owner,
-		//	OStakes: snap.TallyStakes[0].OStakes,
-		//	})
-		//	}
 		log.Info("Delegated Nodes")
 		for i := 0; i < len(snap.TallyDelegatedStake); i++ {
 			fmt.Println(snap.TallyDelegatedStake[i].OStakes)
 			fmt.Println(snap.TallyDelegatedStake[i].Owner)
 		}
-		//tejas
-		//if snap.StakeSigner.String() == "0x0000000000000000000000000000000000000000" {
-		//	snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
-		//
-		//	fmt.Println("Signer",snap.TallyDelegatedStake[0].Owner)
-		//
-		//} else {
-		//	temp := snap.StakeSigner
-		//
-		//	for i := 0; i < len(snap.TallyDelegatedStake); i++ {
-		//		if temp == snap.TallyDelegatedStake[i].Owner {
-		//			if i+1 == len(snap.TallyDelegatedStake) {
-		//				snap.StakeSigner = snap.TallyDelegatedStake[0].Owner
-		//				fmt.Println("Signer",snap.TallyDelegatedStake[0].Owner)
-		//				break
-		//			} else {
-		//				snap.StakeSigner = snap.TallyDelegatedStake[i+1].Owner
-		//				fmt.Println("Signer",snap.TallyDelegatedStake[i+1].Owner)
-		//				break
-		//			}
-		//			break
-		//		}
-		//
-		//	}
-		//}
 
-		// Naveen Our max finding algo
-
-		//max_stake := uint64(00)
-		//var max_staked_address common.Address
-		//for i := 0; i < len(snap.TallyDelegatedStake); i++ {
-		//	if max_stake < snap.TallyDelegatedStake[i].OStakes {
-		//		max_stake = snap.TallyDelegatedStake[i].OStakes
-		//		max_staked_address = snap.TallyDelegatedStake[i].Owner
-		//	}
-
-		//}
-		//time.Sleep(10*time.Second)
 		// If we're taking too much time (ecrecover), notify the user once a while
 		if time.Since(logged) > 8*time.Second {
 			log.Info("Reconstructing voting history", "processed", i, "total", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))
