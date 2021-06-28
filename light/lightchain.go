@@ -320,6 +320,7 @@ func (lc *LightChain) Stop() {
 	lc.StopInsert()
 	lc.wg.Wait()
 	log.Info("Blockchain stopped")
+
 }
 
 // StopInsert interrupts all insertion methods, causing them to return

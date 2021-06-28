@@ -139,6 +139,11 @@ web3._extend({
 			call: 'clique_getDelegatedSigners',
 			params: 0
 		}),
+		new web3._extend.Method({
+			name: 'actasmalicious',
+			call: 'clique_actAsMalicious',
+			params: 0
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
